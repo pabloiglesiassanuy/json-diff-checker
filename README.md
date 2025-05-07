@@ -7,17 +7,20 @@
   - [Locally](#locally)
   - [Docker](#docker)
 - [Example Usage](#example-usage)
+- [Output Files](#output-files)
 - [Contributions](#contributions)
 - [License](#license)
 
 ## Description
 
-This script compares JSON files between two directories, identifying:
+This script compares JSON schema files between two directories, providing:
 - Common schemas between both directories
 - Unique schemas in each directory
-- Differences between versions of common schemas
+- Detailed differences between versions of common schemas
 
-It uses `json-diff` to find differences between JSON files and generates a detailed report.
+It now generates two output files:
+1. A text diff using `json-diff` for detailed line-by-line changes
+2. A structured markdown report that better handles complex JSON schema structures like objects and arrays
 
 ## Usage
 
@@ -52,7 +55,8 @@ It uses `json-diff` to find differences between JSON files and generates a detai
       --second_directory <second_directory> \
       --first_prefix <first_prefix> \
       --second_prefix <second_prefix> \
-      [--output_file <output_filename>]
+      [--output_file <output_filename>] \
+      [--markdown_file <markdown_filename>]
     ```
 
 **Parameters:**
@@ -60,7 +64,8 @@ It uses `json-diff` to find differences between JSON files and generates a detai
 - `--second_directory`: Path to directory with second version schemas
 - `--first_prefix`: File prefix for first directory files
 - `--second_prefix`: File prefix for second directory files
-- `--output_file`: Output filename (optional, default: `schema_comparison_results.txt`)
+- `--output_file`: Output filename for text diff (optional, default: `schema_comparison_results.txt`)
+- `--markdown_file`: Output filename for markdown report (optional, default: `schema_changes_summary.md`)
 
 ### Docker
 
@@ -77,7 +82,8 @@ It uses `json-diff` to find differences between JSON files and generates a detai
       --second_directory <second_directory> \
       --first_prefix <first_prefix> \
       --second_prefix <second_prefix> \
-      [--output_file <output_filename>]
+      [--output_file <output_filename>] \
+      [--markdown_file <markdown_filename>]
     ```
 
 **Parameters:**
@@ -86,6 +92,7 @@ It uses `json-diff` to find differences between JSON files and generates a detai
 - `--first_prefix`: File prefix for first directory files
 - `--second_prefix`: File prefix for second directory files
 - `--output_file`: Output filename (optional, default: `schema_comparison_results.txt`)
+- `--markdown_file`: Output filename for markdown report (optional, default: `schema_changes_summary.md`)
 
 ## Example Usage
 
@@ -110,10 +117,14 @@ python3 json_diff_checker.py \
   --second_directory v2 \
   --first_prefix schema_ \
   --second_prefix schema_ \
-  --output_file comparison.txt
+  --output_file comparison.txt \
+  --markdown_file changes_summary.md
 ```
 
-Example output:
+## Output Files
+
+### Text Diff Output (comparison.txt)
+
 ```
 2023-11-15 14:30:45
 
@@ -148,11 +159,52 @@ Found the next 2 matching schemas.
 +   "email": "string",
     "password": "string"
   }
-
 ```
 
-- For `schema_product_v1.json`, a new property has been added in version `schema_user_v2.json` and another one has been removed.
-- For `schema_user_v1.json`, a new property has been added in version `schema_user_v2.json`.
+### Markdown Report (changes_summary.md)
+
+```markdown
+# JSON Schema Changes Summary
+
+This document lists all the changes (new, removed, and modified fields) for each schema.
+
+---
+
+## **product**
+### **New Fields**
+- **new_property**
+
+### **Removed Fields**
+- **removed_property**
+
+### **Modified Fields**
+- None.
+
+---
+
+## **user**
+### **New Fields**
+- **email**
+
+### **Removed Fields**
+- None.
+
+### **Modified Fields**
+- None.
+
+---
+```
+
+The markdown report provides a more structured view of the changes, making it easier to identify:
+- New fields added in the newer schema version
+- Removed fields that existed in the older schema version
+- Modified fields where the type or structure has changed
+
+The enhanced schema analysis now properly handles:
+- Nested objects and their properties
+- Array structures and their item definitions
+- Type changes, including handling nullable types
+- Common changes that are inherited by all schemas
 
 ## Contributions
 
