@@ -103,7 +103,8 @@ def extract_properties(schema: Dict,
                        path: str = "", 
                        result: Optional[Dict[str, Dict]] = None) -> Dict[str, Dict]:
     """
-    Recursively extract all properties from a JSON schema
+    Recursively extract all properties from a JSON schema with comprehensive exploration
+    of all nested structures including arrays, patternProperties, and additionalProperties.
     
     Args:
         schema: The JSON schema to analyze
@@ -116,34 +117,151 @@ def extract_properties(schema: Dict,
     if result is None:
         result = {}
     
-    # Handle properties at current level
-    if isinstance(schema, dict):
-        if "properties" in schema:
-            for prop_name, prop_schema in schema["properties"].items():
-                prop_path = f"{path}.{prop_name}" if path else prop_name
-                
-                # Store property details
+    # Handle non-dict schemas safely
+    if not isinstance(schema, dict):
+        return result
+
+    # Add the current schema as a property if it has a type
+    if "type" in schema and path:
+        result[path] = {
+            "type": get_schema_type(schema),
+            "description": schema.get("description", ""),
+            "required": False  # Cannot determine at this level
+        }
+    
+    # Process regular properties
+    if "properties" in schema and isinstance(schema["properties"], dict):
+        for prop_name, prop_schema in schema["properties"].items():
+            prop_path = f"{path}.{prop_name}" if path else prop_name
+            
+            # Store property details - safely handle non-dict prop_schema
+            if isinstance(prop_schema, dict):
                 result[prop_path] = {
                     "type": get_schema_type(prop_schema),
                     "description": prop_schema.get("description", ""),
-                    "required": is_required(schema, prop_name)
+                    "required": prop_name in schema.get("required", [])
                 }
                 
-                # Recursively process nested properties
-                if "properties" in prop_schema:
-                    extract_properties(prop_schema, prop_path, result)
-                    
-                # Handle array items with nested properties
-                if prop_schema.get("type") == "array" and "items" in prop_schema:
-                    if "properties" in prop_schema["items"]:
-                        array_path = f"{prop_path}.ARRAY"
-                        extract_properties(prop_schema["items"], array_path, result)
+                # Recursive exploration of this property
+                extract_properties(prop_schema, prop_path, result)
+            else:
+                # Handle non-dict property schema (like boolean)
+                result[prop_path] = {
+                    "type": f"\"{prop_schema}\"",
+                    "description": "",
+                    "required": prop_name in schema.get("required", [])
+                }
+    
+    # Process pattern properties
+    if "patternProperties" in schema and isinstance(schema["patternProperties"], dict):
+        for pattern, pattern_schema in schema["patternProperties"].items():
+            pattern_path = f"{path}.PATTERN({pattern})" if path else f"PATTERN({pattern})"
+            
+            # Store pattern property details - safely handle non-dict pattern_schema
+            if isinstance(pattern_schema, dict):
+                result[pattern_path] = {
+                    "type": get_schema_type(pattern_schema),
+                    "description": pattern_schema.get("description", ""),
+                    "required": False  # Pattern properties usually not required
+                }
+                
+                # Recursive exploration of pattern schema
+                extract_properties(pattern_schema, pattern_path, result)
+            else:
+                # Handle non-dict pattern schema
+                result[pattern_path] = {
+                    "type": f"\"{pattern_schema}\"",
+                    "description": "Non-object pattern schema",
+                    "required": False
+                }
+    
+    # Process array items
+    if "items" in schema:
+        array_path = f"{path}.ARRAY" if path else "ARRAY"
         
-        # Handle additionalProperties with schema
-        if "additionalProperties" in schema and isinstance(schema["additionalProperties"], dict):
-            if "properties" in schema["additionalProperties"]:
-                add_props_path = f"{path}.MAP" if path else "MAP"
-                extract_properties(schema["additionalProperties"], add_props_path, result)
+        # Safely handle array items of different types
+        if isinstance(schema["items"], dict):
+            result[array_path] = {
+                "type": get_schema_type(schema["items"]),
+                "description": schema["items"].get("description", "") if isinstance(schema["items"], dict) else "",
+                "required": False
+            }
+            
+            # Recursive exploration of array items
+            extract_properties(schema["items"], array_path, result)
+        elif isinstance(schema["items"], list):
+            # Handle tuple validation (items as array)
+            for i, item_schema in enumerate(schema["items"]):
+                item_path = f"{array_path}[{i}]"
+                if isinstance(item_schema, dict):
+                    result[item_path] = {
+                        "type": get_schema_type(item_schema),
+                        "description": item_schema.get("description", ""),
+                        "required": False
+                    }
+                    extract_properties(item_schema, item_path, result)
+                else:
+                    result[item_path] = {
+                        "type": f"\"{item_schema}\"",
+                        "description": "Simple item schema",
+                        "required": False
+                    }
+        else:
+            # Handle primitive item type (string, boolean, etc)
+            result[array_path] = {
+                "type": f"\"{schema['items']}\"",
+                "description": "Simple item type",
+                "required": False
+            }
+    
+    # Process additionalProperties
+    if "additionalProperties" in schema:
+        add_props_path = f"{path}.additionalProps" if path else "additionalProps"
+        
+        # Handle both boolean and object additionalProperties
+        if isinstance(schema["additionalProperties"], dict):
+            result[add_props_path] = {
+                "type": get_schema_type(schema["additionalProperties"]),
+                "description": schema["additionalProperties"].get("description", ""),
+                "required": False
+            }
+            
+            # Recursive exploration of additionalProperties schema
+            extract_properties(schema["additionalProperties"], add_props_path, result)
+        else:
+            # For boolean additionalProperties, just note it in the result
+            result[add_props_path] = {
+                "type": f"\"{schema['additionalProperties']}\"",
+                "description": "Boolean additionalProperties flag",
+                "required": False
+            }
+    
+    # Special handling for schema definitions that might be in the root
+    if "definitions" in schema and isinstance(schema["definitions"], dict):
+        for def_name, def_schema in schema["definitions"].items():
+            def_path = f"{path}.definitions.{def_name}" if path else f"definitions.{def_name}"
+            if isinstance(def_schema, dict):
+                extract_properties(def_schema, def_path, result)
+            else:
+                result[def_path] = {
+                    "type": f"\"{def_schema}\"",
+                    "description": "Simple definition",
+                    "required": False
+                }
+    
+    # Handle allOf, anyOf, oneOf composition
+    for composition in ["allOf", "anyOf", "oneOf"]:
+        if composition in schema and isinstance(schema[composition], list):
+            for i, sub_schema in enumerate(schema[composition]):
+                comp_path = f"{path}.{composition}[{i}]" if path else f"{composition}[{i}]"
+                if isinstance(sub_schema, dict):
+                    extract_properties(sub_schema, comp_path, result)
+                else:
+                    result[comp_path] = {
+                        "type": f"\"{sub_schema}\"", 
+                        "description": f"Simple {composition} schema",
+                        "required": False
+                    }
     
     return result
 
