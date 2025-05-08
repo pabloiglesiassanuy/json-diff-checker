@@ -178,7 +178,10 @@ This document lists all the changes (new, removed, and modified fields) for each
 - **removed_property**
 
 ### **Modified Fields**
-- None.
+- **status**:  
+  - **Enum Values Added**: `"pending"`, `"shipped"`
+- **category**:
+  - **Enum Values Removed**: `"discontinued"`
 
 ---
 
@@ -190,7 +193,9 @@ This document lists all the changes (new, removed, and modified fields) for each
 - None.
 
 ### **Modified Fields**
-- None.
+- **role**:  
+  - **Type Change**: `"string"` → `["string", "null"]`
+  - **Enum Values Added**: `"moderator"`
 
 ---
 ```
@@ -199,11 +204,13 @@ The markdown report provides a more structured view of the changes, making it ea
 - New fields added in the newer schema version
 - Removed fields that existed in the older schema version
 - Modified fields where the type or structure has changed
+- Changes to enum values (both added and removed values)
 
 The enhanced schema analysis now properly handles:
 - Nested objects and their properties
 - Array structures and their item definitions
 - Type changes, including handling nullable types
+- Enum value changes (additions and removals)
 - Common changes that are inherited by all schemas
 
 ## Contributions

@@ -126,7 +126,8 @@ def extract_properties(schema: Dict,
         result[path] = {
             "type": get_schema_type(schema),
             "description": schema.get("description", ""),
-            "required": False  # Cannot determine at this level
+            "required": False,  # Cannot determine at this level
+            "enum": schema.get("enum", []) if isinstance(schema.get("enum"), list) else []
         }
     
     # Process regular properties
@@ -139,7 +140,8 @@ def extract_properties(schema: Dict,
                 result[prop_path] = {
                     "type": get_schema_type(prop_schema),
                     "description": prop_schema.get("description", ""),
-                    "required": prop_name in schema.get("required", [])
+                    "required": prop_name in schema.get("required", []),
+                    "enum": prop_schema.get("enum", []) if isinstance(prop_schema.get("enum"), list) else []
                 }
                 
                 # Recursive exploration of this property
@@ -149,7 +151,8 @@ def extract_properties(schema: Dict,
                 result[prop_path] = {
                     "type": f"\"{prop_schema}\"",
                     "description": "",
-                    "required": prop_name in schema.get("required", [])
+                    "required": prop_name in schema.get("required", []),
+                    "enum": []
                 }
     
     # Process pattern properties
@@ -162,7 +165,8 @@ def extract_properties(schema: Dict,
                 result[pattern_path] = {
                     "type": get_schema_type(pattern_schema),
                     "description": pattern_schema.get("description", ""),
-                    "required": False  # Pattern properties usually not required
+                    "required": False,  # Pattern properties usually not required
+                    "enum": pattern_schema.get("enum", []) if isinstance(pattern_schema.get("enum"), list) else []
                 }
                 
                 # Recursive exploration of pattern schema
@@ -172,7 +176,8 @@ def extract_properties(schema: Dict,
                 result[pattern_path] = {
                     "type": f"\"{pattern_schema}\"",
                     "description": "Non-object pattern schema",
-                    "required": False
+                    "required": False,
+                    "enum": []
                 }
     
     # Process array items
@@ -184,7 +189,8 @@ def extract_properties(schema: Dict,
             result[array_path] = {
                 "type": get_schema_type(schema["items"]),
                 "description": schema["items"].get("description", "") if isinstance(schema["items"], dict) else "",
-                "required": False
+                "required": False,
+                "enum": schema["items"].get("enum", []) if isinstance(schema["items"], dict) and isinstance(schema["items"].get("enum"), list) else []
             }
             
             # Recursive exploration of array items
@@ -197,21 +203,24 @@ def extract_properties(schema: Dict,
                     result[item_path] = {
                         "type": get_schema_type(item_schema),
                         "description": item_schema.get("description", ""),
-                        "required": False
+                        "required": False,
+                        "enum": item_schema.get("enum", []) if isinstance(item_schema.get("enum"), list) else []
                     }
                     extract_properties(item_schema, item_path, result)
                 else:
                     result[item_path] = {
                         "type": f"\"{item_schema}\"",
                         "description": "Simple item schema",
-                        "required": False
+                        "required": False,
+                        "enum": []
                     }
         else:
             # Handle primitive item type (string, boolean, etc)
             result[array_path] = {
                 "type": f"\"{schema['items']}\"",
                 "description": "Simple item type",
-                "required": False
+                "required": False,
+                "enum": []
             }
     
     # Process additionalProperties
@@ -223,7 +232,8 @@ def extract_properties(schema: Dict,
             result[add_props_path] = {
                 "type": get_schema_type(schema["additionalProperties"]),
                 "description": schema["additionalProperties"].get("description", ""),
-                "required": False
+                "required": False,
+                "enum": schema["additionalProperties"].get("enum", []) if isinstance(schema["additionalProperties"].get("enum"), list) else []
             }
             
             # Recursive exploration of additionalProperties schema
@@ -233,7 +243,8 @@ def extract_properties(schema: Dict,
             result[add_props_path] = {
                 "type": f"\"{schema['additionalProperties']}\"",
                 "description": "Boolean additionalProperties flag",
-                "required": False
+                "required": False,
+                "enum": []
             }
     
     # Special handling for schema definitions that might be in the root
@@ -246,7 +257,8 @@ def extract_properties(schema: Dict,
                 result[def_path] = {
                     "type": f"\"{def_schema}\"",
                     "description": "Simple definition",
-                    "required": False
+                    "required": False,
+                    "enum": []
                 }
     
     # Handle allOf, anyOf, oneOf composition
@@ -260,7 +272,8 @@ def extract_properties(schema: Dict,
                     result[comp_path] = {
                         "type": f"\"{sub_schema}\"", 
                         "description": f"Simple {composition} schema",
-                        "required": False
+                        "required": False,
+                        "enum": []
                     }
     
     return result
@@ -314,11 +327,13 @@ def compare_schemas(first_schema: Dict, second_schema: Dict) -> Tuple[List[Dict]
                 "type": details["type"]
             })
     
-    # Find modified fields (in both but with different types)
+    # Find modified fields (in both but with different types or enum values)
     modified_fields = []
     for path, first_details in first_properties.items():
         if path in second_properties:
             second_details = second_properties[path]
+            
+            # Check for type changes
             if first_details["type"] != second_details["type"]:
                 modified_fields.append({
                     "name": path,
@@ -326,6 +341,35 @@ def compare_schemas(first_schema: Dict, second_schema: Dict) -> Tuple[List[Dict]
                     "old_value": first_details["type"],
                     "new_value": second_details["type"]
                 })
+            
+            # Check for enum changes
+            first_enum = first_details.get("enum", [])
+            second_enum = second_details.get("enum", [])
+            
+            if first_enum or second_enum:
+                # Convert enum values to strings for consistent comparison
+                first_enum_set = {str(val) for val in first_enum}
+                second_enum_set = {str(val) for val in second_enum}
+                
+                # Find added enum values
+                added_enum = second_enum_set - first_enum_set
+                if added_enum:
+                    modified_fields.append({
+                        "name": path,
+                        "change_type": "Enum Values Added",
+                        "old_value": "",
+                        "new_value": f"{', '.join(sorted(added_enum))}"
+                    })
+                
+                # Find removed enum values
+                removed_enum = first_enum_set - second_enum_set
+                if removed_enum:
+                    modified_fields.append({
+                        "name": path,
+                        "change_type": "Enum Values Removed",
+                        "old_value": f"{', '.join(sorted(removed_enum))}",
+                        "new_value": ""
+                    })
     
     return new_fields, removed_fields, modified_fields
 
@@ -366,12 +410,43 @@ def generate_markdown_report(schema_changes: Dict[str, Dict]) -> str:
         
         markdown += "\n"
         
-        # Modified fields section
+        # Modified fields section - group changes by field name
         markdown += "### **Modified Fields**\n"
         if changes["modified_fields"]:
+            # Group modifications by field name
+            field_changes = {}
             for field in changes["modified_fields"]:
-                markdown += f"- **{field['name']}**:  \n"
-                markdown += f"  - **{field['change_type']}**: `{field['old_value']}` → `{field['new_value']}`\n"
+                field_name = field["name"]
+                if field_name not in field_changes:
+                    field_changes[field_name] = []
+                
+                # Only add non-empty enum change entries
+                if field["change_type"] == "Enum Values Added" and not field["new_value"]:
+                    continue
+                if field["change_type"] == "Enum Values Removed" and not field["old_value"]:
+                    continue
+                
+                field_changes[field_name].append({
+                    "change_type": field["change_type"],
+                    "old_value": field["old_value"],
+                    "new_value": field["new_value"]
+                })
+            
+            # Output each field with all its changes together
+            for field_name, modifications in field_changes.items():
+                if not modifications:  # Skip fields that had only empty enum changes
+                    continue
+                    
+                markdown += f"- **{field_name}**:  \n"
+                for mod in modifications:
+                    if mod["change_type"] == "Type Change":
+                        markdown += f"  - **{mod['change_type']}**: `{mod['old_value']}` → `{mod['new_value']}`\n"
+                    elif mod["change_type"] == "Enum Values Added":
+                        markdown += f"  - **{mod['change_type']}**: `{mod['new_value']}`\n"
+                    elif mod["change_type"] == "Enum Values Removed":
+                        markdown += f"  - **{mod['change_type']}**: `{mod['old_value']}`\n"
+                    else:
+                        markdown += f"  - **{mod['change_type']}**: `{mod['old_value']}` → `{mod['new_value']}`\n"
         else:
             markdown += "- None.\n"
         
