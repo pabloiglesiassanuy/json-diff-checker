@@ -350,7 +350,7 @@ def generate_markdown_report(schema_changes: Dict[str, Dict]) -> str:
         markdown += "### **New Fields**\n"
         if changes["new_fields"]:
             for field in changes["new_fields"]:
-                markdown += f"- **{field['name']}**\n"
+                markdown += f"- **{field['name']}** (Type: `{field['type']}`)\n"
         else:
             markdown += "- None.\n"
         
