@@ -122,12 +122,16 @@ def extract_properties(schema: Dict,
         return result
 
     # Add the current schema as a property if it has a type
-    if "type" in schema and path:
+    if path:
         result[path] = {
             "type": get_schema_type(schema),
             "description": schema.get("description", ""),
             "required": False,  # Cannot determine at this level
-            "enum": schema.get("enum", []) if isinstance(schema.get("enum"), list) else []
+            "enum": schema.get("enum", []) if isinstance(schema.get("enum"), list) else [],
+            "format": schema.get("format", ""),
+            "default": schema.get("default"),
+            "pattern": schema.get("pattern", ""),
+            "constraints": extract_constraints(schema)
         }
     
     # Process regular properties
@@ -141,7 +145,11 @@ def extract_properties(schema: Dict,
                     "type": get_schema_type(prop_schema),
                     "description": prop_schema.get("description", ""),
                     "required": prop_name in schema.get("required", []),
-                    "enum": prop_schema.get("enum", []) if isinstance(prop_schema.get("enum"), list) else []
+                    "enum": prop_schema.get("enum", []) if isinstance(prop_schema.get("enum"), list) else [],
+                    "format": prop_schema.get("format", ""),
+                    "default": prop_schema.get("default"),
+                    "pattern": prop_schema.get("pattern", ""),
+                    "constraints": extract_constraints(prop_schema)
                 }
                 
                 # Recursive exploration of this property
@@ -152,7 +160,11 @@ def extract_properties(schema: Dict,
                     "type": f"\"{prop_schema}\"",
                     "description": "",
                     "required": prop_name in schema.get("required", []),
-                    "enum": []
+                    "enum": [],
+                    "format": "",
+                    "default": None,
+                    "pattern": "",
+                    "constraints": {}
                 }
     
     # Process pattern properties
@@ -166,7 +178,11 @@ def extract_properties(schema: Dict,
                     "type": get_schema_type(pattern_schema),
                     "description": pattern_schema.get("description", ""),
                     "required": False,  # Pattern properties usually not required
-                    "enum": pattern_schema.get("enum", []) if isinstance(pattern_schema.get("enum"), list) else []
+                    "enum": pattern_schema.get("enum", []) if isinstance(pattern_schema.get("enum"), list) else [],
+                    "format": pattern_schema.get("format", ""),
+                    "default": pattern_schema.get("default"),
+                    "pattern": pattern_schema.get("pattern", ""),
+                    "constraints": extract_constraints(pattern_schema)
                 }
                 
                 # Recursive exploration of pattern schema
@@ -177,7 +193,11 @@ def extract_properties(schema: Dict,
                     "type": f"\"{pattern_schema}\"",
                     "description": "Non-object pattern schema",
                     "required": False,
-                    "enum": []
+                    "enum": [],
+                    "format": "",
+                    "default": None,
+                    "pattern": "",
+                    "constraints": {}
                 }
     
     # Process array items
@@ -190,7 +210,11 @@ def extract_properties(schema: Dict,
                 "type": get_schema_type(schema["items"]),
                 "description": schema["items"].get("description", "") if isinstance(schema["items"], dict) else "",
                 "required": False,
-                "enum": schema["items"].get("enum", []) if isinstance(schema["items"], dict) and isinstance(schema["items"].get("enum"), list) else []
+                "enum": schema["items"].get("enum", []) if isinstance(schema["items"], dict) and isinstance(schema["items"].get("enum"), list) else [],
+                "format": schema["items"].get("format", "") if isinstance(schema["items"], dict) else "",
+                "default": schema["items"].get("default") if isinstance(schema["items"], dict) else None,
+                "pattern": schema["items"].get("pattern", "") if isinstance(schema["items"], dict) else "",
+                "constraints": extract_constraints(schema["items"]) if isinstance(schema["items"], dict) else {}
             }
             
             # Recursive exploration of array items
@@ -204,7 +228,11 @@ def extract_properties(schema: Dict,
                         "type": get_schema_type(item_schema),
                         "description": item_schema.get("description", ""),
                         "required": False,
-                        "enum": item_schema.get("enum", []) if isinstance(item_schema.get("enum"), list) else []
+                        "enum": item_schema.get("enum", []) if isinstance(item_schema.get("enum"), list) else [],
+                        "format": item_schema.get("format", ""),
+                        "default": item_schema.get("default"),
+                        "pattern": item_schema.get("pattern", ""),
+                        "constraints": extract_constraints(item_schema)
                     }
                     extract_properties(item_schema, item_path, result)
                 else:
@@ -212,7 +240,11 @@ def extract_properties(schema: Dict,
                         "type": f"\"{item_schema}\"",
                         "description": "Simple item schema",
                         "required": False,
-                        "enum": []
+                        "enum": [],
+                        "format": "",
+                        "default": None,
+                        "pattern": "",
+                        "constraints": {}
                     }
         else:
             # Handle primitive item type (string, boolean, etc)
@@ -220,7 +252,11 @@ def extract_properties(schema: Dict,
                 "type": f"\"{schema['items']}\"",
                 "description": "Simple item type",
                 "required": False,
-                "enum": []
+                "enum": [],
+                "format": "",
+                "default": None,
+                "pattern": "",
+                "constraints": {}
             }
     
     # Process additionalProperties
@@ -233,7 +269,11 @@ def extract_properties(schema: Dict,
                 "type": get_schema_type(schema["additionalProperties"]),
                 "description": schema["additionalProperties"].get("description", ""),
                 "required": False,
-                "enum": schema["additionalProperties"].get("enum", []) if isinstance(schema["additionalProperties"].get("enum"), list) else []
+                "enum": schema["additionalProperties"].get("enum", []) if isinstance(schema["additionalProperties"].get("enum"), list) else [],
+                "format": schema["additionalProperties"].get("format", ""),
+                "default": schema["additionalProperties"].get("default"),
+                "pattern": schema["additionalProperties"].get("pattern", ""),
+                "constraints": extract_constraints(schema["additionalProperties"])
             }
             
             # Recursive exploration of additionalProperties schema
@@ -244,7 +284,11 @@ def extract_properties(schema: Dict,
                 "type": f"\"{schema['additionalProperties']}\"",
                 "description": "Boolean additionalProperties flag",
                 "required": False,
-                "enum": []
+                "enum": [],
+                "format": "",
+                "default": None,
+                "pattern": "",
+                "constraints": {}
             }
     
     # Special handling for schema definitions that might be in the root
@@ -258,7 +302,11 @@ def extract_properties(schema: Dict,
                     "type": f"\"{def_schema}\"",
                     "description": "Simple definition",
                     "required": False,
-                    "enum": []
+                    "enum": [],
+                    "format": "",
+                    "default": None,
+                    "pattern": "",
+                    "constraints": {}
                 }
     
     # Handle allOf, anyOf, oneOf composition
@@ -273,7 +321,11 @@ def extract_properties(schema: Dict,
                         "type": f"\"{sub_schema}\"", 
                         "description": f"Simple {composition} schema",
                         "required": False,
-                        "enum": []
+                        "enum": [],
+                        "format": "",
+                        "default": None,
+                        "pattern": "",
+                        "constraints": {}
                     }
     
     return result
@@ -288,6 +340,47 @@ def get_schema_type(schema: Dict) -> str:
     if isinstance(schema_type, list):
         return f"[\"{'\", \"'.join(schema_type)}\"]"
     return f"\"{schema_type}\""
+
+
+def extract_constraints(schema: Dict) -> Dict:
+    """
+    Extract constraint attributes from a JSON schema property
+    
+    Args:
+        schema: The schema property to extract constraints from
+        
+    Returns:
+        Dictionary containing constraint information
+    """
+    constraints = {}
+    
+    # Numeric constraints
+    for constraint in ['minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 
+                       'multipleOf', 'minItems', 'maxItems', 'minProperties', 'maxProperties',
+                       'minLength', 'maxLength']:
+        if constraint in schema:
+            constraints[constraint] = schema[constraint]
+    
+    # Boolean constraints
+    for constraint in ['uniqueItems', 'additionalItems']:
+        if constraint in schema and isinstance(schema[constraint], bool):
+            constraints[constraint] = schema[constraint]
+    
+    # Special case for additionalProperties - add if it's a boolean
+    if 'additionalProperties' in schema and isinstance(schema['additionalProperties'], bool):
+        constraints['additionalProperties'] = schema['additionalProperties']
+    
+    # Add pattern, format, and default values as constraints as well for better tracking
+    if 'pattern' in schema and schema['pattern']:
+        constraints['pattern'] = schema['pattern']
+        
+    if 'format' in schema and schema['format']:
+        constraints['format'] = schema['format']
+        
+    if 'default' in schema:
+        constraints['default'] = schema['default']
+        
+    return constraints
 
 
 def is_required(schema: Dict, property_name: str) -> bool:
@@ -309,6 +402,65 @@ def compare_schemas(first_schema: Dict, second_schema: Dict) -> Tuple[List[Dict]
     first_properties = extract_properties(first_schema)
     second_properties = extract_properties(second_schema)
     
+    # Track required properties from "required" arrays in both schemas
+    first_required_props = {}
+    second_required_props = {}
+    
+    # Extract required properties from top level and nested structures
+    def extract_required_props(schema, result_dict, path=""):
+        if not isinstance(schema, dict):
+            return
+        
+        # Handle required properties at current level
+        if "properties" in schema and "required" in schema and isinstance(schema["required"], list):
+            current_path = path
+            for prop in schema["required"]:
+                # Full path to this property
+                prop_path = f"{current_path}.{prop}" if current_path else prop
+                result_dict[prop_path] = True
+                
+        # Handle pattern properties
+        if "patternProperties" in schema and isinstance(schema["patternProperties"], dict):
+            for pattern, pattern_schema in schema["patternProperties"].items():
+                pattern_path = f"{path}.PATTERN({pattern})" if path else f"PATTERN({pattern})"
+                # Add the pattern itself as required if specified
+                if "required" in schema and pattern in schema["required"]:
+                    result_dict[pattern_path] = True
+                # Recursively process the pattern property schema
+                extract_required_props(pattern_schema, result_dict, pattern_path)
+        
+        # Process all properties to handle nested requirements
+        if "properties" in schema and isinstance(schema["properties"], dict):
+            for prop_name, prop_schema in schema["properties"].items():
+                prop_path = f"{path}.{prop_name}" if path else prop_name
+                extract_required_props(prop_schema, result_dict, prop_path)
+                
+        # Handle arrays and their items
+        if "items" in schema:
+            items_path = f"{path}.ARRAY" if path else "ARRAY"
+            if isinstance(schema["items"], dict):
+                extract_required_props(schema["items"], result_dict, items_path)
+            elif isinstance(schema["items"], list):
+                for i, item_schema in enumerate(schema["items"]):
+                    item_path = f"{items_path}[{i}]"
+                    if isinstance(item_schema, dict):
+                        extract_required_props(item_schema, result_dict, item_path)
+        
+        # Recursive check for nested schemas
+        for key, value in schema.items():
+            if key not in ["properties", "patternProperties", "items"] and isinstance(value, dict):
+                new_path = f"{path}.{key}" if path else key
+                extract_required_props(value, result_dict, new_path)
+            elif isinstance(value, list):
+                for i, item in enumerate(value):
+                    if isinstance(item, dict):
+                        new_path = f"{path}.{key}[{i}]" if path else f"{key}[{i}]"
+                        extract_required_props(item, result_dict, new_path)
+    
+    # Get required properties from both schemas
+    extract_required_props(first_schema, first_required_props)
+    extract_required_props(second_schema, second_required_props)
+    
     # Find new fields (in second but not in first)
     new_fields = []
     for path, details in second_properties.items():
@@ -327,7 +479,7 @@ def compare_schemas(first_schema: Dict, second_schema: Dict) -> Tuple[List[Dict]
                 "type": details["type"]
             })
     
-    # Find modified fields (in both but with different types or enum values)
+    # Find modified fields (in both but with different properties)
     modified_fields = []
     for path, first_details in first_properties.items():
         if path in second_properties:
@@ -369,6 +521,122 @@ def compare_schemas(first_schema: Dict, second_schema: Dict) -> Tuple[List[Dict]
                         "change_type": "Enum Values Removed",
                         "old_value": f"{', '.join(sorted(removed_enum))}",
                         "new_value": ""
+                    })
+            
+            # Check for requirement status changes - this uses both methods
+            req_change_detected = False
+            
+            # Method 1: Check the required flag from extraction
+            if first_details["required"] != second_details["required"]:
+                old_status = "Required" if first_details["required"] else "Optional"
+                new_status = "Required" if second_details["required"] else "Optional"
+                modified_fields.append({
+                    "name": path,
+                    "change_type": "Requirement Status",
+                    "old_value": old_status,
+                    "new_value": new_status
+                })
+                req_change_detected = True
+            
+            # Method 2: Check if the path is in the required dictionaries
+            if not req_change_detected:
+                in_first_req = path in first_required_props
+                in_second_req = path in second_required_props
+                if in_first_req != in_second_req:
+                    old_status = "Required" if in_first_req else "Optional"
+                    new_status = "Required" if in_second_req else "Optional"
+                    modified_fields.append({
+                        "name": path,
+                        "change_type": "Requirement Status",
+                        "old_value": old_status,
+                        "new_value": new_status
+                    })
+            
+            # Check for format changes
+            first_format = first_details.get("format", "")
+            second_format = second_details.get("format", "")
+            if first_format != second_format:
+                old_format = first_format if first_format else "(none)"
+                new_format = second_format if second_format else "(none)"
+                modified_fields.append({
+                    "name": path,
+                    "change_type": "Format",
+                    "old_value": old_format,
+                    "new_value": new_format
+                })
+            
+            # Check for default value changes
+            first_default = first_details.get("default")
+            second_default = second_details.get("default")
+            
+            # Convert to JSON string representation for accurate comparison
+            first_default_str = json.dumps(first_default) if first_default is not None else None
+            second_default_str = json.dumps(second_default) if second_default is not None else None
+            
+            if first_default_str != second_default_str:
+                old_default = "(none)" if first_default is None else json.dumps(first_default)
+                new_default = "(none)" if second_default is None else json.dumps(second_default)
+                modified_fields.append({
+                    "name": path,
+                    "change_type": "Default Value",
+                    "old_value": old_default,
+                    "new_value": new_default
+                })
+            
+            # Check for pattern changes
+            first_pattern = first_details.get("pattern", "")
+            second_pattern = second_details.get("pattern", "")
+            if first_pattern != second_pattern:
+                old_pattern = first_pattern if first_pattern else "(none)"
+                new_pattern = second_pattern if second_pattern else "(none)"
+                modified_fields.append({
+                    "name": path,
+                    "change_type": "Pattern",
+                    "old_value": old_pattern,
+                    "new_value": new_pattern
+                })
+            
+            # Check for constraint changes
+            first_constraints = first_details.get("constraints", {})
+            second_constraints = second_details.get("constraints", {})
+            
+            # Get all constraint keys from both schemas
+            all_constraints = set(first_constraints.keys()) | set(second_constraints.keys())
+            
+            for constraint in all_constraints:
+                # Skip pattern/format/default since we handle them separately above
+                if constraint in ('pattern', 'format', 'default'):
+                    continue
+                    
+                first_value = first_constraints.get(constraint)
+                second_value = second_constraints.get(constraint)
+                
+                # Skip if values are identical
+                if first_value == second_value:
+                    continue
+                
+                # Handle the case when a constraint is missing in one schema
+                if constraint not in first_constraints:
+                    modified_fields.append({
+                        "name": path,
+                        "change_type": f"Constraint Added ({constraint})",
+                        "old_value": "(none)",
+                        "new_value": json.dumps(second_value)
+                    })
+                elif constraint not in second_constraints:
+                    modified_fields.append({
+                        "name": path,
+                        "change_type": f"Constraint Removed ({constraint})",
+                        "old_value": json.dumps(first_value),
+                        "new_value": "(none)"
+                    })
+                else:
+                    # Both schemas have the constraint but with different values
+                    modified_fields.append({
+                        "name": path,
+                        "change_type": f"Constraint ({constraint})",
+                        "old_value": json.dumps(first_value),
+                        "new_value": json.dumps(second_value)
                     })
     
     return new_fields, removed_fields, modified_fields
@@ -438,15 +706,36 @@ def generate_markdown_report(schema_changes: Dict[str, Dict]) -> str:
                     continue
                     
                 markdown += f"- **{field_name}**:  \n"
-                for mod in modifications:
-                    if mod["change_type"] == "Type Change":
-                        markdown += f"  - **{mod['change_type']}**: `{mod['old_value']}` → `{mod['new_value']}`\n"
-                    elif mod["change_type"] == "Enum Values Added":
-                        markdown += f"  - **{mod['change_type']}**: `{mod['new_value']}`\n"
-                    elif mod["change_type"] == "Enum Values Removed":
-                        markdown += f"  - **{mod['change_type']}**: `{mod['old_value']}`\n"
+                
+                # Sort modifications to ensure requirement status changes come first,
+                # followed by type changes, then other changes
+                sorted_mods = sorted(modifications, key=lambda x: (
+                    0 if x["change_type"] == "Requirement Status" else 
+                    1 if x["change_type"] == "Type Change" else 
+                    2
+                ))
+                
+                for mod in sorted_mods:
+                    change_type = mod["change_type"]
+                    
+                    if change_type == "Type Change":
+                        markdown += f"  - **Type Change**: `{mod['old_value']}` → `{mod['new_value']}`\n"
+                    elif change_type == "Enum Values Added":
+                        markdown += f"  - **Enum Values Added**: `{mod['new_value']}`\n"
+                    elif change_type == "Enum Values Removed":
+                        markdown += f"  - **Enum Values Removed**: `{mod['old_value']}`\n"
+                    elif change_type == "Requirement Status":
+                        markdown += f"  - **Requirement Status Change**: `{mod['old_value']}` → `{mod['new_value']}`\n"
+                    elif change_type == "Format":
+                        markdown += f"  - **Format Change**: `{mod['old_value']}` → `{mod['new_value']}`\n"
+                    elif change_type == "Default Value":
+                        markdown += f"  - **Default Value Change**: `{mod['old_value']}` → `{mod['new_value']}`\n"
+                    elif change_type == "Pattern Change":
+                        markdown += f"  - **Pattern**: `{mod['old_value']}` → `{mod['new_value']}`\n"
+                    elif change_type.startswith("Constraint"):
+                        markdown += f"  - **{change_type}**: `{mod['old_value']}` → `{mod['new_value']}`\n"
                     else:
-                        markdown += f"  - **{mod['change_type']}**: `{mod['old_value']}` → `{mod['new_value']}`\n"
+                        markdown += f"  - **{change_type}**: `{mod['old_value']}` → `{mod['new_value']}`\n"
         else:
             markdown += "- None.\n"
         
